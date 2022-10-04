@@ -1,6 +1,6 @@
 let activeEffect
 const effectStack = []
-function effect(fn) {
+export function effect(fn) {
   const effectFn = () => {
     cleanup(effectFn)
     activeEffect = effectFn
@@ -15,18 +15,21 @@ function effect(fn) {
 
 const bucket = new WeakMap()
 
-const obj = new Proxy(data, {
-  get(target, key) {
-    track(target, key)
-    return target[key]
-  },
-  set(target, key, newVal) {
-    target[key] = newVal
-    trigger(target, key)
-  }
-})
+export function dataToResponsive(data) {
+  return new Proxy(data, {
+    get(target, key) {
+      track(target, key)
+      return target[key]
+    },
+    set(target, key, newVal) {
+      target[key] = newVal
+      trigger(target, key)
+      return true
+    }
+  })
+}
 
-function track() {
+function track(target, key) {
   if (!activeEffect) return
   let depsMap = bucket.get(target)
   if (!depsMap) {
