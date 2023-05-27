@@ -1,6 +1,6 @@
 let activeEffect
 const effectStack = []
-export function effect(fn) {
+export function effect(fn, options = {}) {
   const effectFn = () => {
     cleanup(effectFn)
     activeEffect = effectFn
@@ -9,6 +9,7 @@ export function effect(fn) {
     effectStack.pop()
     activeEffect = effectStack[effectStack.length - 1]
   }
+  effectFn.options = options
   effectFn.deps = []
   effectFn()
 }
@@ -53,7 +54,13 @@ function trigger(target, key) {
       effectToRun.add(effectFn)
     }
   })
-  effectToRun.forEach(effectFn => effectFn())
+  effectToRun.forEach(effectFn => {
+    if (effectFn.options.scheduler) {
+      effectFn.options.scheduler(effectFn)
+    } else {
+      effectFn()
+    }
+  })
 }
 
 function cleanup(effectFn) {
