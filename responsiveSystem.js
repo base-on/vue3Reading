@@ -19,17 +19,37 @@ export function effect(fn, options = {}) {
 }
 
 const bucket = new WeakMap()
+const ITERATE_KEY = Symbol()
 
 export function dataToResponsive(data) {
   return new Proxy(data, {
-    get(target, key) {
+    get(target, key, receiver) {
       track(target, key)
-      return target[key]
+      return Reflect.get(target, key, receiver)
     },
-    set(target, key, newVal) {
-      target[key] = newVal
-      trigger(target, key)
-      return true
+    set(target, key, newVal, receiver) {
+      const type = Object.prototype.hasOwnProperty.call(target, key) ? 'SET' : 'ADD'
+      const res = Reflect.set(target, key, newVal, receiver)
+      trigger(target, key, type)
+      return res
+    },
+    has(target, key) {
+      track(target, key)
+      return Reflect.has(target, key)
+    },
+    ownKeys(target) {
+      track(target, ITERATE_KEY)
+      return Reflect.ownKeys(target)
+    },
+    deleteProperty(target, key) {
+      const hadKey = Object.prototype.hasOwnProperty.call(target, key)
+      const res = Reflect.deleteProperty(target, key)
+
+      if (res && hadKey) {
+        trigger(target, key, 'DELETE')
+      }
+
+      return res
     }
   })
 }
@@ -48,7 +68,7 @@ function track(target, key) {
   activeEffect.deps.push(deps)
 }
 
-function trigger(target, key) {
+function trigger(target, key, type) {
   const depsMap = bucket.get(target)
   if (!depsMap) return
   const effects = depsMap.get(key)
@@ -58,6 +78,15 @@ function trigger(target, key) {
       effectToRun.add(effectFn)
     }
   })
+  if (type === 'ADD' || type === 'DELETE') {
+    const iterateEffects = depsMap.get(ITERATE_KEY)
+    iterateEffects && iterateEffects.forEach(effectFn => {
+      if (effectFn !== activeEffect) {
+        effectToRun.add(effectFn)
+      }
+    })
+  }
+
   effectToRun.forEach(effectFn => {
     if (effectFn.options.scheduler) {
       effectFn.options.scheduler(effectFn)
