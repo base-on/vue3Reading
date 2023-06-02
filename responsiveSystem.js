@@ -21,16 +21,26 @@ export function effect(fn, options = {}) {
 const bucket = new WeakMap()
 const ITERATE_KEY = Symbol()
 
-export function dataToResponsive(data) {
+export function reactive(data) {
   return new Proxy(data, {
     get(target, key, receiver) {
+      if (key === 'raw') {
+        return target
+      }
+
       track(target, key)
       return Reflect.get(target, key, receiver)
     },
     set(target, key, newVal, receiver) {
+      const oldVal = target[key]
+
       const type = Object.prototype.hasOwnProperty.call(target, key) ? 'SET' : 'ADD'
       const res = Reflect.set(target, key, newVal, receiver)
-      trigger(target, key, type)
+      if (target === receiver.raw) {
+        if (oldVal !== newVal && (oldVal === oldVal || newVal === newVal)) {
+          trigger(target, key, type)
+        }
+      }
       return res
     },
     has(target, key) {
