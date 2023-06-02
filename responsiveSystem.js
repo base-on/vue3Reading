@@ -21,7 +21,15 @@ export function effect(fn, options = {}) {
 const bucket = new WeakMap()
 const ITERATE_KEY = Symbol()
 
-export function reactive(data) {
+export function reactive(obj) {
+  return createReactive(obj)
+}
+
+export function shallowReactive(obj) {
+  return createReactive(obj, true)
+}
+
+function createReactive(data, isShallow = false) {
   return new Proxy(data, {
     get(target, key, receiver) {
       if (key === 'raw') {
@@ -29,7 +37,16 @@ export function reactive(data) {
       }
 
       track(target, key)
-      return Reflect.get(target, key, receiver)
+
+      const res = Reflect.get(target, key, receiver)
+      if (isShallow) {
+        return res
+      }
+
+      if (typeof res === 'object' && res !== null) {
+        return reactive(res)
+      }
+      return res
     },
     set(target, key, newVal, receiver) {
       const oldVal = target[key]
