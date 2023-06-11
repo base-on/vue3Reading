@@ -29,14 +29,24 @@ export function shallowReactive(obj) {
   return createReactive(obj, true)
 }
 
-function createReactive(data, isShallow = false) {
+export function readonly(obj) {
+  return createReactive(obj, false, true)
+}
+
+export function shallowReadonly(obj) {
+  return createReactive(obj, true, true)
+}
+
+function createReactive(data, isShallow = false, isReadonly = false) {
   return new Proxy(data, {
     get(target, key, receiver) {
       if (key === 'raw') {
         return target
       }
 
-      track(target, key)
+      if (!isReadonly) {
+        track(target, key)
+      }
 
       const res = Reflect.get(target, key, receiver)
       if (isShallow) {
@@ -44,11 +54,16 @@ function createReactive(data, isShallow = false) {
       }
 
       if (typeof res === 'object' && res !== null) {
-        return reactive(res)
+        return isReadonly ? readonly(res) : reactive(res)
       }
       return res
     },
     set(target, key, newVal, receiver) {
+      if (isReadonly) {
+        console.warn(`属性${key}是只读的`)
+        return true
+      }
+
       const oldVal = target[key]
 
       const type = Object.prototype.hasOwnProperty.call(target, key) ? 'SET' : 'ADD'
@@ -69,6 +84,11 @@ function createReactive(data, isShallow = false) {
       return Reflect.ownKeys(target)
     },
     deleteProperty(target, key) {
+      if (isReadonly) {
+        console.warn(`属性${key}是只读的`)
+        return true
+      }
+
       const hadKey = Object.prototype.hasOwnProperty.call(target, key)
       const res = Reflect.deleteProperty(target, key)
 
