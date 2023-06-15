@@ -44,6 +44,7 @@ export function shallowReadonly(obj) {
   return createReactive(obj, true, true)
 }
 
+let shouldTrack = true
 const arrayInstrumentations = {}
 
   ;['includes', 'indexOf', 'lastIndexOf'].forEach(method => {
@@ -57,6 +58,16 @@ const arrayInstrumentations = {}
         res = originMethod.apply(this.raw, args)
       }
 
+      return res
+    }
+  })
+
+  ;['push', 'pop', 'shift', 'unshift', 'splice'].forEach(method => {
+    const originMethod = Array.prototype[method]
+    arrayInstrumentations[method] = function (...args) {
+      shouldTrack = false
+      let res = originMethod.apply(this, args)
+      shouldTrack = true
       return res
     }
   })
@@ -131,7 +142,7 @@ function createReactive(data, isShallow = false, isReadonly = false) {
 }
 
 function track(target, key) {
-  if (!activeEffect) return
+  if (!activeEffect || !shouldTrack) return
   let depsMap = bucket.get(target)
   if (!depsMap) {
     bucket.set(target, (depsMap = new Map()))
