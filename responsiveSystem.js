@@ -20,9 +20,16 @@ export function effect(fn, options = {}) {
 
 const bucket = new WeakMap()
 const ITERATE_KEY = Symbol()
+const reactiveMap = new Map()
 
 export function reactive(obj) {
-  return createReactive(obj)
+  const existionProxy = reactiveMap.get(obj)
+  if (existionProxy) return existionProxy
+
+  const proxy = createReactive(obj)
+  reactiveMap.set(obj, proxy)
+
+  return proxy
 }
 
 export function shallowReactive(obj) {
@@ -37,11 +44,32 @@ export function shallowReadonly(obj) {
   return createReactive(obj, true, true)
 }
 
+const arrayInstrumentations = {}
+
+  ;['includes', 'indexOf', 'lastIndexOf'].forEach(method => {
+    const originMethod = Array.prototype[method];
+    arrayInstrumentations[method] = function (...args) {
+      // 首先在代理对象中查找元素
+      let res = originMethod.apply(this, args)
+
+      // 如果没找到，就去原始数组中查找
+      if (res === false) {
+        res = originMethod.apply(this.raw, args)
+      }
+
+      return res
+    }
+  })
+
 function createReactive(data, isShallow = false, isReadonly = false) {
   return new Proxy(data, {
     get(target, key, receiver) {
       if (key === 'raw') {
         return target
+      }
+
+      if (Array.isArray(target) && arrayInstrumentations.hasOwnProperty(key)) {
+        return Reflect.get(arrayInstrumentations, key, receiver)
       }
 
       if (!isReadonly && typeof key !== 'symbol') {
