@@ -73,6 +73,10 @@ const arrayInstrumentations = {}
   })
 
 function createReactive(data, isShallow = false, isReadonly = false) {
+  if (data instanceof Set || data instanceof Map) {
+    return createReactiveSetMap(data, isShallow, isReadonly)
+  }
+
   return new Proxy(data, {
     get(target, key, receiver) {
       if (key === 'raw') {
@@ -137,6 +141,18 @@ function createReactive(data, isShallow = false, isReadonly = false) {
       }
 
       return res
+    }
+  })
+}
+
+function createReactiveSetMap(obj, isShallow = false, isReadonly = false) {
+  return new Proxy(obj, {
+    get(target, key, receiver) {
+      if (key === 'size') {
+        return Reflect.get(target, key, target)
+      }
+
+      return target[key].bind(target)
     }
   })
 }
