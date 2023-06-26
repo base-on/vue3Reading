@@ -72,6 +72,30 @@ const arrayInstrumentations = {}
     }
   })
 
+
+const mutableInstrumentations = {
+  add(key) {
+    const target = this.raw
+
+    const hadKey = target.has(key)
+
+    const res = target.add(key)
+    if (!hadKey) {
+      trigger(target, key, 'ADD')
+    }
+    return res
+  },
+  delete(key) {
+    const target = this.raw
+    const hadKey = target.has(key)
+    const res = target.delete(key)
+    if (hadKey) {
+      trigger(target, key, 'DELETE')
+    }
+    return res
+  }
+}
+
 function createReactive(data, isShallow = false, isReadonly = false) {
   if (data instanceof Set || data instanceof Map) {
     return createReactiveSetMap(data, isShallow, isReadonly)
@@ -148,11 +172,13 @@ function createReactive(data, isShallow = false, isReadonly = false) {
 function createReactiveSetMap(obj, isShallow = false, isReadonly = false) {
   return new Proxy(obj, {
     get(target, key, receiver) {
+      if (key === 'raw') return target
       if (key === 'size') {
+        track(target, ITERATE_KEY)
         return Reflect.get(target, key, target)
       }
 
-      return target[key].bind(target)
+      return mutableInstrumentations[key]
     }
   })
 }
