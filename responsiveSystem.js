@@ -20,6 +20,7 @@ export function effect(fn, options = {}) {
 
 const bucket = new WeakMap()
 const ITERATE_KEY = Symbol()
+const MAP_KEY_ITERATE_KEY = Symbol()
 const reactiveMap = new Map()
 
 export function reactive(obj) {
@@ -132,7 +133,45 @@ const mutableInstrumentations = {
     })
   },
   [Symbol.iterator]: iterationMethod,
-  entries: iterationMethod
+  entries: iterationMethod,
+  values() {
+    const target = this.raw
+    const itr = target.values()
+    const wrap = (val) => typeof val === 'object' && val !== null ? reactive(val) : val
+    track(target, ITERATE_KEY)
+
+    return {
+      next() {
+        const { value, done } = itr.next()
+        return {
+          value: wrap(value),
+          done
+        }
+      },
+      [Symbol.iterator]() {
+        return this
+      }
+    }
+  },
+  keys() {
+    const target = this.raw
+    const itr = target.keys()
+    const wrap = (val) => typeof val === 'object' && val !== null ? reactive(val) : val
+    track(target, MAP_KEY_ITERATE_KEY)
+
+    return {
+      next() {
+        const { value, done } = itr.next()
+        return {
+          value: wrap(value),
+          done
+        }
+      },
+      [Symbol.iterator]() {
+        return this
+      }
+    }
+  }
 }
 function iterationMethod() {
   const target = this.raw
@@ -270,6 +309,15 @@ function trigger(target, key, type, newVal) {
     || type === 'SET' && Object.prototype.toString.call(target) === '[object Map]'
   ) {
     const iterateEffects = depsMap.get(ITERATE_KEY)
+    iterateEffects && iterateEffects.forEach(effectFn => {
+      if (effectFn !== activeEffect) {
+        effectToRun.add(effectFn)
+      }
+    })
+  }
+
+  if ((type === 'ADD' || type === 'DELETE') && Object.prototype.toString.call(target) === '[object Map]') {
+    const iterateEffects = depsMap.get(MAP_KEY_ITERATE_KEY)
     iterateEffects && iterateEffects.forEach(effectFn => {
       if (effectFn !== activeEffect) {
         effectToRun.add(effectFn)
