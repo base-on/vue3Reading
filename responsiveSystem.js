@@ -1,3 +1,5 @@
+import { Text, Comment, Fragment } from './nodeType.js'
+
 let activeEffect
 const effectStack = []
 export function effect(fn, options = {}) {
@@ -496,11 +498,7 @@ export function createRenderer(options) {
     unmount
   } = options
 
-  const Text = Symbol()
-  const Comment = Symbol()
-  const Fragment = Symbol()
-
-  function mountElement(vnode, container) {
+  function mountElement(vnode, container, anchor) {
     const el = vnode.el = createElement(vnode.type)
 
     if (typeof vnode.children === 'string') {
@@ -517,7 +515,7 @@ export function createRenderer(options) {
       }
     }
 
-    insert(el, container)
+    insert(el, container, anchor)
   }
 
   function patchElement(n1, n2) {
@@ -552,16 +550,50 @@ export function createRenderer(options) {
         const oldChildren = n1.children
         const newChildren = n2.children
 
+        let lastIndex = 0
         for (let i = 0; i < newChildren.length; i++) {
           const newVnode = newChildren[i]
+          let find = false
 
           for (let j = 0; j < oldChildren.length; j++) {
             const oldVnode = oldChildren[j]
 
             if (newVnode.key === oldVnode.key) {
+              find = true
               patch(oldVnode, newVnode, container)
+
+              if (j < lastIndex) {
+                const prevVNode = newChildren[i - 1]
+                // 如果prevVNode不存在，则说明当前newVNode是第一个节点，它不需要移动
+                if (prevVNode) {
+                  const anchor = prevVNode.el.nextSibling
+                  insert(newVnode.el, container, anchor)
+                }
+              } else {
+                lastIndex = j
+              }
               break
             }
+          }
+
+          if (!find) {
+            const prevVNode = newChildren[i - 1]
+            let anchor = null
+            if (prevVNode) {
+              anchor = prevVNode.el.nextSibling
+            } else {
+              anchor = container.firstChild
+            }
+            patch(null, newVnode, container, anchor)
+          }
+        }
+
+        for (let i = 0; i < oldChildren.length; i++) {
+          const oldVnode = oldChildren[i]
+
+          const has = newChildren.find(vnode => vnode.key === oldVnode.key)
+          if (!has) {
+            unmount(oldVnode)
           }
         }
       } else {
@@ -578,7 +610,7 @@ export function createRenderer(options) {
     }
   }
 
-  function patch(n1, n2, container) {
+  function patch(n1, n2, container, anchor) {
     if (n1 && n1.type !== n2.type) {
       unmount(n1)
       n1 = null
@@ -587,7 +619,7 @@ export function createRenderer(options) {
     const { type } = n2
     if (typeof type === 'string') {
       if (!n1) {
-        mountElement(n2, container)
+        mountElement(n2, container, anchor)
       } else {
         patchElement(n1, n2)
       }

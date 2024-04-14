@@ -1,3 +1,4 @@
+import { Text, Comment, Fragment } from './nodeType.js'
 import { createRenderer } from './responsiveSystem.js'
 
 function shouldSetAsProps(el, key, value) {
@@ -81,9 +82,10 @@ const renderer = createRenderer({
 const oldVnode = {
   type: 'div',
   children: [
+    { type: 'p', children: '0', key: 0 },
     { type: 'p', children: '1', key: 1 },
     { type: 'p', children: '2', key: 2 },
-    { type: 'p', children: 'hello', key: 3 }
+    { type: 'p', children: 'hello', key: 3 },
   ]
 }
 
@@ -92,7 +94,8 @@ const newVnode = {
   children: [
     { type: 'p', children: 'world', key: 3 },
     { type: 'p', children: '1', key: 1 },
-    { type: 'p', children: '2', key: 2 }
+    { type: 'p', children: '2', key: 2 },
+    { type: 'p', children: 'new node', key: 4 }
   ]
 }
 renderer.render(oldVnode, document.querySelector('#app'))
