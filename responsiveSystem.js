@@ -547,55 +547,7 @@ export function createRenderer(options) {
     } else if (Array.isArray(n2.children)) {
       if (Array.isArray(n1.children)) {
         // 这个情况是重头，需要使用Diff算法
-        const oldChildren = n1.children
-        const newChildren = n2.children
-
-        let lastIndex = 0
-        for (let i = 0; i < newChildren.length; i++) {
-          const newVnode = newChildren[i]
-          let find = false
-
-          for (let j = 0; j < oldChildren.length; j++) {
-            const oldVnode = oldChildren[j]
-
-            if (newVnode.key === oldVnode.key) {
-              find = true
-              patch(oldVnode, newVnode, container)
-
-              if (j < lastIndex) {
-                const prevVNode = newChildren[i - 1]
-                // 如果prevVNode不存在，则说明当前newVNode是第一个节点，它不需要移动
-                if (prevVNode) {
-                  const anchor = prevVNode.el.nextSibling
-                  insert(newVnode.el, container, anchor)
-                }
-              } else {
-                lastIndex = j
-              }
-              break
-            }
-          }
-
-          if (!find) {
-            const prevVNode = newChildren[i - 1]
-            let anchor = null
-            if (prevVNode) {
-              anchor = prevVNode.el.nextSibling
-            } else {
-              anchor = container.firstChild
-            }
-            patch(null, newVnode, container, anchor)
-          }
-        }
-
-        for (let i = 0; i < oldChildren.length; i++) {
-          const oldVnode = oldChildren[i]
-
-          const has = newChildren.find(vnode => vnode.key === oldVnode.key)
-          if (!has) {
-            unmount(oldVnode)
-          }
-        }
+        patchKeyedChildren(n1, n2, container)
       } else {
         setElementText(container, '')
         n2.children.forEach(c => patch(null, c, container))
@@ -606,6 +558,84 @@ export function createRenderer(options) {
         n1.children.forEach(c => unmount(c))
       } else if (typeof n1.children === 'string') {
         setElementText(container, '')
+      }
+    }
+  }
+
+  function patchKeyedChildren(n1, n2, container) {
+    const oldChildren = n1.children
+    const newChildren = n2.children
+
+    let oldStartIdx = 0
+    let oldEndIdx = oldChildren.length - 1
+    let newStartIdx = 0
+    let newEndIdx = newChildren.length - 1
+
+    let oldStartVNode = oldChildren[oldStartIdx]
+    let oldEndVNode = oldChildren[oldEndIdx]
+    let newStartVNode = newChildren[newStartIdx]
+    let newEndVNode = newChildren[newEndIdx]
+
+    while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+      if (!oldStartVNode) {
+        oldStartVNode = oldChildren[++oldStartIdx]
+      } else if (!oldEndVNode) {
+        oldEndVNode = oldChildren[--oldEndIdx]
+      } else if (oldStartVNode.key === newStartVNode.key) {
+        console.log('新头匹配旧头', oldStartVNode.key)
+        patch(oldStartVNode, newStartVNode, container)
+        oldStartVNode = oldChildren[++oldStartIdx]
+        newStartVNode = newChildren[++newStartIdx]
+      } else if (oldEndVNode.key === newEndVNode.key) {
+        console.log('新尾匹配旧尾', oldEndVNode.key)
+        patch(oldEndVNode, newEndVNode, container)
+        oldEndVNode = oldChildren[--oldEndIdx]
+        newEndVNode = newChildren[--newEndIdx]
+      } else if (oldStartVNode.key === newEndVNode.key) {
+        console.log('新尾匹配旧头', oldStartVNode.key)
+        patch(oldStartVNode, newEndVNode, container)
+        insert(oldStartVNode.el, container, oldEndVNode.el.nextSibling)
+
+        oldStartVNode = oldChildren[++oldStartIdx]
+        newEndVNode = newChildren[--newEndIdx]
+      } else if (oldEndVNode.key === newStartVNode.key) {
+        console.log('新头匹配旧尾', oldEndVNode.key)
+        patch(oldEndVNode, newStartVNode, container)
+        insert(oldEndVNode.el, container, oldStartVNode.el)
+
+        oldEndVNode = oldChildren[--oldEndIdx]
+        newStartVNode = newChildren[++newStartIdx]
+      } else {
+        // 在旧队列中寻找与“新头”匹配的节点
+        const idxInOld = oldChildren.findIndex(node => node && node.key === newStartVNode.key)
+        if (idxInOld > 0) {
+          console.log('全队搜新头', newStartVNode.key)
+          const vnodeToMove = oldChildren[idxInOld]
+          patch(vnodeToMove, newStartVNode, container)
+          insert(vnodeToMove.el, container, oldStartVNode.el)
+          oldChildren[idxInOld] = undefined
+        } else {
+          console.log('搜新头搜不到', newStartVNode.key)
+          patch(null, newStartVNode, container, oldStartVNode.el)
+        }
+        newStartVNode = newChildren[++newStartIdx]
+      }
+    }
+
+    if (oldEndIdx < oldStartIdx && newStartIdx <= newEndIdx) {
+      // 如果新队列还有剩下未遍历的，进行新增
+      for (let i = newStartIdx; i <= newEndIdx; i++) {
+        if (newChildren[i]) {
+          patch(null, newChildren[i], container, oldStartVNode.el)
+        }
+      }
+    } else if (newEndIdx < newStartIdx && oldStartIdx <= oldEndIdx) {
+      // 如果旧队列还有剩下未遍历的，进行卸载
+      for (let i = oldStartIdx; i <= oldEndIdx; i++) {
+        if (oldChildren[i]) {
+          console.log('旧队列剩下的需要卸载', oldChildren[i].key)
+          unmount(oldChildren[i])
+        }
       }
     }
   }
